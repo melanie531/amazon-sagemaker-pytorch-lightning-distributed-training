@@ -392,6 +392,7 @@ class SegModel(LightningModule):
 
 
 def main(hparams: Namespace):
+    
     # ------------------------
     # 1 INIT LIGHTNING MODEL
     # ------------------------
