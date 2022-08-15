@@ -307,6 +307,7 @@ class SegModel(LightningModule):
         self,
         data_path: str,
         model_dir: str,
+        max_epochs: int,
         batch_size: int = 4,
         lr: float = 1e-3,
         num_layers: int = 3,
@@ -380,6 +381,7 @@ class SegModel(LightningModule):
         parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
         parser.add_argument("--lr", type=float, default=0.001, help="adam: learning rate")
         parser.add_argument("--num_layers", type=int, default=5, help="number of layers on u-net")
+        parser.add_argument("--max_epochs", type=int, default=20, help="max number of epochs")
         parser.add_argument("--features_start", type=float, default=64, help="number of features in first layer")
         parser.add_argument(
             "--bilinear", action="store_true", default=False, help="whether to use bilinear interpolation or transposed"
@@ -413,7 +415,6 @@ def main(hparams: Namespace):
         hparams.accelerator='gpu'
         hparams.device=torch.cuda.device_count()
         hparams.strategy='ddp'
-        hparams.max_epochs=20
         
     early_stopping = EarlyStopping(
         monitor='val_loss',
@@ -440,9 +441,5 @@ if __name__ == "__main__":
     parser = ArgumentParser(add_help=False)
     parser = SegModel.add_model_specific_args(parser)
     hparams = parser.parse_args()
-    print(hparams.data_path)
-    input_dir = os.path.join('/opt/ml/input/data', "data_path")
-    input_file_list = glob.glob(f"{input_dir}/*")
-    print(f"Input file list: {input_file_list}")
 
     main(hparams)
