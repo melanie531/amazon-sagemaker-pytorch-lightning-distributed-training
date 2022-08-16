@@ -429,7 +429,7 @@ def main(hparams: Namespace):
     
     env = LightningEnvironment()
     
-    print(os.environ)
+#     print(os.environ)
     # need to double check if num_gpus is per node or in total
     env.world_size = lambda: int(os.environ.get("OMPI_COMM_WORLD_SIZE", 0))
     env.global_rank = lambda: int(os.environ.get("OMPI_COMM_WORLD_RANK", 0))
@@ -439,7 +439,7 @@ def main(hparams: Namespace):
     trainer = Trainer.from_argparse_args(hparams,
                                          strategy=ddp,
                                          precision=16,
-                                         num_nodes=2,
+                                         num_nodes=int(len(ast.literal_eval(os.environ["SM_HOSTS"]))),
                                          callbacks=[early_stopping])
 
     # ------------------------
