@@ -16,6 +16,7 @@ import os
 import random
 from argparse import ArgumentParser, Namespace
 import glob
+import ast
 
 import numpy as np
 import torch
@@ -28,6 +29,8 @@ from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.plugins.environments.lightning_environment import LightningEnvironment
+from pytorch_lightning.strategies import DDPStrategy
 
 DEFAULT_VOID_LABELS = (0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1)
 DEFAULT_VALID_LABELS = (7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33)
@@ -398,7 +401,6 @@ def main(hparams: Namespace):
     # ------------------------
     model = SegModel(**vars(hparams))
 
-
     # ------------------------
     # 2 SET LOGGER
     # ------------------------
@@ -413,17 +415,31 @@ def main(hparams: Namespace):
     # 3 INIT TRAINER
     # ------------------------
     if torch.cuda.is_available():
-        hparams.accelerator='gpu'
+        accelerator = 'gpu'
         hparams.device=torch.cuda.device_count()
-        hparams.strategy='ddp'
+    else:
+        accelerator = 'cpu'    
         
     early_stopping = EarlyStopping(
         monitor='val_loss',
     )
     
+    local_rank = int(os.environ.get("LOCAL_RANK",0))
+    torch.cuda.set_device(local_rank)
+    
+    env = LightningEnvironment()
+    
+    print(os.environ)
+    # need to double check if num_gpus is per node or in total
+    env.world_size = lambda: int(os.environ.get("OMPI_COMM_WORLD_SIZE", 0))
+    env.global_rank = lambda: int(os.environ.get("OMPI_COMM_WORLD_RANK", 0))
+    
+    ddp = DDPStrategy(cluster_environment=env, accelerator=accelerator)
         
     trainer = Trainer.from_argparse_args(hparams,
+                                         strategy=ddp,
                                          precision=16,
+                                         num_nodes=2,
                                          callbacks=[early_stopping])
 
     # ------------------------
@@ -434,7 +450,8 @@ def main(hparams: Namespace):
     # ------------------------
     # 6 SAVE MODEL
     # ------------------------
-    torch.save(trainer.model.state_dict(), hparams.model_dir + "/model.pth")
+    if int(os.environ.get("OMPI_COMM_WORLD_RANK", 0))==0:
+        torch.save(trainer.model.state_dict(), hparams.model_dir + "/model.pth")
     
     
 
